@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GLtoy</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    @keyframes bubbleRise {
+      0% { transform: translateY(0) scale(0.8); opacity: 0.95; }
+      100% { transform: translateY(-180px) scale(1.25); opacity: 0.05; }
+    }
+    .bubble-anim { animation: bubbleRise 1.8s infinite linear; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen p-3 md:p-6">
+
+  <!-- ENCABEZADO Y NAVEGACIÓN POR MÓDULOS -->
+  <header class="max-w-7xl mx-auto mb-5 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-slate-800 pb-4">
+      <div>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-[11px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded border border-amber-500/30">
+            Simulador GLtoy
+          </span>
+          <span id="sanityBadge" class="text-[11px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded border border-emerald-500/30">
+            ✓ Cálculo Válido (Pwf_test &lt; Pr)
+          </span>
+        </div>
+        <h1 class="text-xl md:text-2xl font-bold text-white mt-1">
+          Simulador de Análisis Nodal y Descarga Dinámica de Gas Lift (LAG)
+        </h1>
+      </div>
+      <!-- Botones de Casos de Estudio y Ficha Técnica -->
+      <div class="flex flex-wrap gap-2">
+        <button onclick="loadPreset('srb14')" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 px-3 py-1.5 rounded-lg font-semibold cursor-pointer">
+          📌 Caso Pozo SRB-14
+        </button>
+        <button onclick="loadPreset('ej2')" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/40 px-3 py-1.5 rounded-lg font-semibold cursor-pointer">
+          📘 Caso Subsaturado (Pr = 2900 psi)
+        </button>
+        <button onclick="toggleWellSheet()" class="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 px-3 py-1.5 rounded-lg font-bold cursor-pointer shadow">
+          📄 Ficha Técnica del Pozo
+        </button>
+      </div>
+    </div>
+
+    <!-- BARRA DE 4 BOTONES DE MÓDULOS -->
+    <nav class="grid grid-cols-2 md:grid-cols-4 gap-2.5 pt-4">
+      <button onclick="showModule(1)" id="navBtn1" class="py-3 px-4 rounded-xl font-bold text-xs md:text-sm transition flex items-center justify-center gap-2 bg-amber-500 text-slate-950 shadow-lg cursor-pointer">
+        <span>⚙️ 1. Datos e IPR (Oferta)</span>
+      </button>
+      <button onclick="showModule(2)" id="navBtn2" class="py-3 px-4 rounded-xl font-bold text-xs md:text-sm transition flex items-center justify-center gap-2 bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer">
+        <span>📈 2. Análisis Nodal (IPR vs TPR)</span>
+      </button>
+      <button onclick="showModule(3)" id="navBtn3" class="py-3 px-4 rounded-xl font-bold text-xs md:text-sm transition flex items-center justify-center gap-2 bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer">
+        <span>🔩 3. Descarga de Válvulas (LAG)</span>
+      </button>
+      <button onclick="showModule(4)" id="navBtn4" class="py-3 px-4 rounded-xl font-bold text-xs md:text-sm transition flex items-center justify-center gap-2 bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer">
+        <span>📋 4. Tablas y Exportar CSV</span>
+      </button>
+    </nav>
+  </header>
+
+  <main class="max-w-7xl mx-auto">
+
+    <!-- ===================================================================== -->
+    <!-- MÓDULO 1: DATOS DEL POZO Y CURVA IPR                                  -->
+    <!-- ===================================================================== -->
+    <section id="mod1" class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      
+      <!-- DOCUMENTACIÓN TÉCNICA MÓDULO 1 -->
+      <div class="lg:col-span-12 bg-gradient-to-r from-amber-500/10 via-slate-900 to-slate-900 border border-amber-500/30 rounded-2xl p-4">
+        <button onclick="toggleExpl('expl1')" class="w-full flex justify-between items-center text-left cursor-pointer">
+          <span class="text-sm font-bold text-amber-300">📖 Documentación Técnica: Fundamento, Fórmulas y Reemplazo Numérico</span>
+          <span id="expl1-icon" class="text-amber-300 text-lg font-bold">▼</span>
+        </button>
+        <div id="expl1" class="mt-3 space-y-3 text-xs text-slate-300 hidden">
+          <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
+            <div class="text-amber-300 font-bold mb-1">🎯 Alcance del Módulo IPR</div>
+            <div>Determina la <b>capacidad de aporte del yacimiento</b> (IPR = <i>Inflow Performance Relationship</i>), cuantificando el caudal de fluido que entrega la formación hacia el fondo del pozo en función de la presión de fondo fluyente (P<sub>wf</sub>).</div>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-[11px] space-y-1.5" id="expl1-math"></div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="bg-slate-950 border border-emerald-500/30 rounded-lg p-3">
+              <div class="text-emerald-300 font-bold mb-1">📊 Lectura del Resultado</div>
+              <div id="expl1-interp" class="text-slate-300">—</div>
+            </div>
+            <div class="bg-slate-950 border border-sky-500/30 rounded-lg p-3">
+              <div class="text-sky-300 font-bold mb-1">📝 Nota Técnica</div>
+              <div class="text-slate-300" id="expl1-speech">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+        <h2 class="text-base font-bold text-amber-400 border-b border-slate-800 pb-2">
+          Parámetros de Reservorio y Correlación IPR
+        </h2>
+
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Correlación de Flujo Interno (IPR):</label>
+          <select id="iprMethod" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-semibold" onchange="updateSim()">
+            <option value="vogel">1. Método de Vogel Simple (Saturado P_r ≤ P_b)</option>
+            <option value="compuesto">2. Vogel Compuesto (Subsaturado P_r &gt; P_b)</option>
+            <option value="klins">3. Método de Klins &amp; Majcher (Exponente d)</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <label class="text-slate-400 block mb-1">Presión Reservorio P<sub>r</sub> (psi)</label>
+            <input id="pr" type="number" value="2200" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" oninput="updateSim()">
+          </div>
+          <div>
+            <label class="text-slate-400 block mb-1">Presión Burbuja P<sub>b</sub> (psi)</label>
+            <input id="pb" type="number" value="2220" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" oninput="updateSim()">
+          </div>
+          <div>
+            <label class="text-slate-400 block mb-1">Caudal Prueba Q<sub>o</sub> (STB/d)</label>
+            <input id="qTest" type="number" value="230" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" oninput="updateSim()">
+          </div>
+          <div>
+            <label class="text-slate-400 block mb-1">P<sub>wf</sub> de Prueba (psi)</label>
+            <input id="pwfTest" type="number" value="1800" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" oninput="updateSim()">
+          </div>
+          <div>
+            <label class="text-slate-400 block mb-1">P<sub>wf</sub> Objetivo Evaluación (psi)</label>
+            <input id="pwfTarget" type="number" value="1255" class="w-full bg-slate-950 border border-amber-500/50 rounded-lg px-3 py-2 text-amber-300 font-bold text-sm" oninput="updateSim()">
+          </div>
+          <div>
+            <label class="text-slate-400 block mb-1">Gravedad Crudo (°API)</label>
+            <input id="api" type="number" value="35" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" oninput="updateSim()">
+          </div>
+        </div>
+
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2 text-xs">
+          <div class="text-amber-400 font-bold uppercase tracking-wider">Parámetros Calculados:</div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Potencial Máximo (AOF / Q<sub>max</sub>):</span>
+            <span id="resQmax" class="font-bold text-white text-sm">764.37 STB/d</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Parámetro de Correlación:</span>
+            <span id="resExtraParam" class="font-bold text-sky-400">Pwf / Pr = 0.818</span>
+          </div>
+          <div class="flex justify-between border-t border-slate-800 pt-2">
+            <span class="text-slate-300">Caudal para P<sub>wf</sub> Objetivo:</span>
+            <span id="resQtarget" class="font-bold text-emerald-400 text-sm">475.2 STB/d</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="text-base font-bold text-white">Curva de Rendimiento de Flujo Interno (IPR)</h3>
+          <span id="iprBadge" class="text-xs bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded font-semibold">Método: Vogel Simple</span>
+        </div>
+        <div class="h-80 w-full">
+          <canvas id="iprOnlyChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- MÓDULO 2: ANÁLISIS NODAL Y SENSIBILIDAD                               -->
+    <!-- ===================================================================== -->
+    <section id="mod2" class="hidden grid-cols-1 lg:grid-cols-12 gap-5">
+      
+      <!-- DOCUMENTACIÓN TÉCNICA MÓDULO 2 -->
+      <div class="lg:col-span-12 bg-gradient-to-r from-sky-500/10 via-slate-900 to-slate-900 border border-sky-500/30 rounded-2xl p-4">
+        <button onclick="toggleExpl('expl2')" class="w-full flex justify-between items-center text-left cursor-pointer">
+          <span class="text-sm font-bold text-sky-300">📖 Documentación Técnica: Análisis Nodal IPR vs TPR</span>
+          <span id="expl2-icon" class="text-sky-300 text-lg font-bold">▼</span>
+        </button>
+        <div id="expl2" class="mt-3 space-y-3 text-xs text-slate-300 hidden">
+          <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
+            <div class="text-sky-300 font-bold mb-1">🎯 Alcance del Módulo de Análisis Nodal</div>
+            <div>Determina el <b>punto de operación del sistema</b> en la intersección donde la <b>oferta del yacimiento (IPR)</b> iguala a la <b>demanda de presión requerida por la tubería eductora (TPR)</b>, evaluando el alivio hidrostático producido por la inyección de gas.</div>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-[11px] space-y-1.5" id="expl2-math"></div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="bg-slate-950 border border-emerald-500/30 rounded-lg p-3">
+              <div class="text-emerald-300 font-bold mb-1">📊 Lectura del Resultado</div>
+              <div id="expl2-interp" class="text-slate-300">—</div>
+            </div>
+            <div class="bg-slate-950 border border-sky-500/30 rounded-lg p-3">
+              <div class="text-sky-300 font-bold mb-1">📝 Nota Técnica</div>
+              <div class="text-slate-300" id="expl2-speech">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-4 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+        <h2 class="text-base font-bold text-sky-400 border-b border-slate-800 pb-2">
+          Variables Operativas y Sensibilidad
+        </h2>
+
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="setQuickGLR(200)" class="bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-bold py-2.5 px-3 rounded-lg transition cursor-pointer">
+            🔴 SIN Gas Lift (RGL 200)
+          </button>
+          <button onclick="setQuickGLR(800)" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-3 rounded-lg transition cursor-pointer">
+            🟢 CON Gas Lift (RGL 800)
+          </button>
+        </div>
+
+        <div class="space-y-3 text-xs pt-2">
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="text-sky-300 font-bold">Relación Gas-Líquido (RGL Total):</span>
+              <span id="lblGlr" class="bg-sky-600 text-white px-2 py-0.5 rounded font-bold">800 scf/STB</span>
+            </div>
+            <input id="glrSlider" type="range" min="200" max="1000" step="50" value="800" class="w-full accent-sky-400 cursor-pointer" oninput="updateSim()">
+          </div>
+
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="text-amber-300 font-bold">Corte de Agua (WC %):</span>
+              <span id="lblWc" class="bg-amber-600 text-white px-2 py-0.5 rounded font-bold">50 %</span>
+            </div>
+            <input id="wcSlider" type="range" min="0" max="85" step="5" value="50" class="w-full accent-amber-400 cursor-pointer" oninput="updateSim()">
+          </div>
+
+          <div>
+            <label class="block text-slate-400 mb-1">Diámetro Interno de Tubería (ID):</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button onclick="setTubing(1.995)" id="tbgBtn1" class="py-1.5 rounded border border-slate-700 bg-slate-950 text-slate-300 text-xs font-bold cursor-pointer">2" (1.995")</button>
+              <button onclick="setTubing(2.441)" id="tbgBtn2" class="py-1.5 rounded border border-sky-500 bg-sky-500/20 text-sky-300 text-xs font-bold cursor-pointer">2.5" (2.441")</button>
+              <button onclick="setTubing(2.992)" id="tbgBtn3" class="py-1.5 rounded border border-slate-700 bg-slate-950 text-slate-300 text-xs font-bold cursor-pointer">3" (2.992")</button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <div>
+              <label class="text-slate-400 block mb-1">Presión Cabeza P<sub>wh</sub> (psi)</label>
+              <input id="pwh" type="number" value="80" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white" oninput="updateSim()">
+            </div>
+            <div>
+              <label class="text-slate-400 block mb-1">Profundidad Baleo H (ft)</label>
+              <input id="depth" type="number" value="8500" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white" oninput="updateSim()">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-8 space-y-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-xl">
+            <div class="text-[11px] text-slate-400">Caudal SIN Gas Lift</div>
+            <div id="nodalQbase" class="text-lg font-bold text-rose-400">165 STB/d</div>
+            <div id="nodalPbase" class="text-[11px] text-slate-500">Pwf = 1920 psi</div>
+          </div>
+          <div class="bg-slate-900 border border-emerald-500/40 p-3.5 rounded-xl">
+            <div class="text-[11px] text-emerald-300">Punto Operación Actual</div>
+            <div id="nodalQsim" class="text-lg font-bold text-emerald-400">475 STB/d</div>
+            <div id="nodalPsim" class="text-[11px] text-slate-300">Pwf = 1255 psi</div>
+          </div>
+          <div class="bg-slate-900 border border-sky-500/40 p-3.5 rounded-xl">
+            <div class="text-[11px] text-sky-300">Incremento por Gas Lift</div>
+            <div id="nodalGain" class="text-lg font-bold text-white">+310 STB/d</div>
+            <div id="nodalOilNet" class="text-[11px] text-sky-400">Petróleo: 237.5 BPD</div>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-xl">
+            <div class="text-[11px] text-slate-400">Alivio Presión Columna</div>
+            <div id="nodalDeltaP" class="text-lg font-bold text-amber-400">-665 psi</div>
+            <div class="text-[11px] text-slate-500">Reducción Hidrostática</div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <h3 class="text-sm font-bold text-white mb-2">Intersección Oferta (IPR) vs. Demanda (TPR Multifásica Segmentada)</h3>
+          <div class="h-80 w-full">
+            <canvas id="nodalMainChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- MÓDULO 3: DESCARGA DINÁMICA DE VÁLVULAS Y REGISTRO DE CÁLCULO         -->
+    <!-- ===================================================================== -->
+    <section id="mod3" class="hidden grid-cols-1 lg:grid-cols-12 gap-5">
+      
+      <div class="lg:col-span-4 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3.5">
+        <h2 class="text-base font-bold text-emerald-400 border-b border-slate-800 pb-2">
+          Secuencia de Descarga (Unloading V1 → V4)
+        </h2>
+
+        <button onclick="runAutoUnloading()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow-lg transition cursor-pointer">
+          ▶ Ejecutar Descarga Automática Paso a Paso (V1 → V4)
+        </button>
+
+        <div class="space-y-1.5">
+          <div class="text-[11px] font-bold text-slate-400 uppercase">Selección manual de etapa operativa:</div>
+          <button onclick="setUnloadStage(0)" id="stBtn0" class="w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-950 border border-slate-800 hover:bg-slate-800 flex justify-between cursor-pointer">
+            <span>0. Pozo Ahogado (Sin inyección)</span>
+            <span class="text-rose-400">Pcsg: 600 psi</span>
+          </button>
+          <button onclick="setUnloadStage(1)" id="stBtn1" class="w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-950 border border-slate-800 hover:bg-slate-800 flex justify-between cursor-pointer">
+            <span>1. Abre Válvula 1 (Descarga Sup.)</span>
+            <span class="text-sky-400">Pcsg: 730 psi (2500')</span>
+          </button>
+          <button onclick="setUnloadStage(2)" id="stBtn2" class="w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-950 border border-slate-800 hover:bg-slate-800 flex justify-between cursor-pointer">
+            <span>2. Abre Válvula 2 (Cierra V1)</span>
+            <span class="text-sky-400">Pcsg: 830 psi (4500')</span>
+          </button>
+          <button onclick="setUnloadStage(3)" id="stBtn3" class="w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-950 border border-slate-800 hover:bg-slate-800 flex justify-between cursor-pointer">
+            <span>3. Abre Válvula 3 (Cierra V1 y V2)</span>
+            <span class="text-sky-400">Pcsg: 930 psi (6500')</span>
+          </button>
+          <button onclick="setUnloadStage(4)" id="stBtn4" class="w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/20 border border-emerald-500 text-emerald-300 flex justify-between cursor-pointer">
+            <span>4. Estabilizado en V4 Operante</span>
+            <span class="font-bold">Pcsg: 1000 psi (8000')</span>
+          </button>
+        </div>
+
+        <div class="pt-1 border-t border-slate-800">
+          <label class="block text-xs text-slate-400 mb-1">Configuración Mecánica Subsuperficial:</label>
+          <select id="installType" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-semibold" onchange="updateUnloadView(false)">
+            <option value="semi">Instalación Semicerrada (Con Packer)</option>
+            <option value="closed">Instalación Cerrada (Packer + Válvula de Pie)</option>
+            <option value="open">Instalación Abierta (Sin Packer)</option>
+          </select>
+        </div>
+
+        <div class="pt-1 border-t border-slate-800">
+          <h3 class="text-xs font-bold text-sky-400 mb-1">Balance IPO (R = A<sub>v</sub>/A<sub>b</sub> = 0.12 con P<sub>tbg</sub>):</h3>
+          <table class="w-full text-[11px] text-left">
+            <thead>
+              <tr class="text-slate-400 border-b border-slate-800">
+                <th class="py-1">Mandril</th>
+                <th class="py-1">Prof.</th>
+                <th class="py-1">P<sub>csg</sub> Sup.</th>
+                <th class="py-1 text-right">Estado</th>
+              </tr>
+            </thead>
+            <tbody id="valvesTableUnload" class="divide-y divide-slate-800/70"></tbody>
+          </table>
+        </div>
+
+        <!-- REGISTRO MATEMÁTICO PASO A PASO -->
+        <div class="pt-2 border-t border-slate-800">
+          <div class="flex justify-between items-center mb-1">
+            <h3 class="text-xs font-bold text-emerald-400">📋 Registro de Cálculo de Descarga</h3>
+            <button onclick="document.getElementById('unloadLog').innerHTML=''" class="text-[10px] text-slate-400 hover:text-white cursor-pointer">Limpiar</button>
+          </div>
+          <div id="unloadLog" class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 max-h-40 overflow-y-auto text-[11px] space-y-1.5 font-mono"></div>
+        </div>
+      </div>
+
+      <!-- Esquema Visual SVG del Pozo -->
+      <div class="lg:col-span-4 bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
+        <div>
+          <h3 class="text-sm font-bold text-white">Esquema Mecánico del Pozo en Vivo</h3>
+          <p id="stageBanner" class="text-xs text-emerald-400 font-bold mt-0.5">
+            ✓ Etapa 4: Inyectando por V4 Operante (8000 ft) | Q = 475 STB/d
+          </p>
+        </div>
+
+        <div class="my-2 flex justify-center">
+          <svg viewBox="0 0 280 420" class="w-full max-h-[380px] bg-slate-950 rounded-xl border border-slate-800 p-2">
+            <line x1="10" y1="30" x2="270" y2="30" stroke="#475569" stroke-width="2"/>
+            <text x="15" y="20" fill="#94a3b8" font-size="9">Superficie | Pcsg = <tspan id="svgPcsgVal" fill="#38bdf8" font-weight="bold">1000</tspan> psi</text>
+
+            <rect x="75" y="30" width="130" height="350" fill="#0f172a" stroke="#64748b" stroke-width="2.5"/>
+
+            <rect id="anFluidL" x="77" y="330" width="38" height="20" fill="#0284c7" opacity="0.5"/>
+            <rect id="anFluidR" x="165" y="330" width="38" height="20" fill="#0284c7" opacity="0.5"/>
+
+            <rect id="anGasL" x="77" y="32" width="38" height="298" fill="#38bdf8" opacity="0.15"/>
+            <rect id="anGasR" x="165" y="32" width="38" height="298" fill="#38bdf8" opacity="0.15"/>
+
+            <rect x="115" y="20" width="50" height="355" fill="#1e293b" stroke="#cbd5e1" stroke-width="2"/>
+            <rect x="117" y="22" width="46" height="350" fill="#f59e0b" opacity="0.25"/>
+
+            <g id="svgPackerGroup">
+              <rect x="76" y="345" width="39" height="12" fill="#e11d48"/>
+              <rect x="165" y="345" width="39" height="12" fill="#e11d48"/>
+              <text x="208" y="354" fill="#f43f5e" font-size="8" font-weight="bold">Packer</text>
+            </g>
+
+            <g id="svgStandingValve" style="display:none;">
+              <circle cx="140" cy="362" r="5" fill="#fbbf24" stroke="#000" stroke-width="1"/>
+              <line x1="128" y1="367" x2="152" y2="367" stroke="#fbbf24" stroke-width="2.5"/>
+              <text x="168" y="368" fill="#fbbf24" font-size="7.5" font-weight="bold">Válvula de Pie</text>
+            </g>
+
+            <circle id="svgV1" cx="115" cy="115" r="5" fill="#f59e0b" stroke="#fff" stroke-width="1"/>
+            <text x="20" y="118" fill="#cbd5e1" font-size="8">V1 (2500')</text>
+
+            <circle id="svgV2" cx="115" cy="190" r="5" fill="#f59e0b" stroke="#fff" stroke-width="1"/>
+            <text x="20" y="193" fill="#cbd5e1" font-size="8">V2 (4500')</text>
+
+            <circle id="svgV3" cx="115" cy="265" r="5" fill="#f59e0b" stroke="#fff" stroke-width="1"/>
+            <text x="20" y="268" fill="#cbd5e1" font-size="8">V3 (6500')</text>
+
+            <circle id="svgV4" cx="115" cy="330" r="6.5" fill="#10b981" stroke="#fff" stroke-width="1.5"/>
+            <text x="15" y="333" fill="#34d399" font-size="8" font-weight="bold">V4 (8000')</text>
+
+            <g id="svgBubbles" transform="translate(0, 0)">
+              <circle cx="132" cy="325" r="3.5" fill="#38bdf8" class="bubble-anim" style="animation-delay: 0s;"/>
+              <circle cx="148" cy="315" r="4" fill="#38bdf8" class="bubble-anim" style="animation-delay: 0.4s;"/>
+              <circle cx="138" cy="300" r="3" fill="#38bdf8" class="bubble-anim" style="animation-delay: 0.9s;"/>
+              <circle cx="150" cy="285" r="4.5" fill="#38bdf8" class="bubble-anim" style="animation-delay: 1.3s;"/>
+            </g>
+          </svg>
+        </div>
+
+        <div class="flex justify-between text-[11px] text-slate-400 border-t border-slate-800 pt-2">
+          <span>🟢 Inyectando Gas</span>
+          <span>🟡 Cerrada (Descargada)</span>
+          <span>🔴 Cerrada (Ahogada)</span>
+        </div>
+      </div>
+
+      <!-- Gráfico de Espaciamiento y Gradiente -->
+      <div class="lg:col-span-4 bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
+        <div>
+          <h3 class="text-sm font-bold text-white">Gráfico de Espaciamiento y Gradiente (dP/dz)</h3>
+          <p class="text-xs text-slate-400 mt-0.5">Cambio de pendiente en el punto de inyección:</p>
+        </div>
+        <div class="h-80 w-full my-2">
+          <canvas id="traverseChart"></canvas>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-[11px] text-slate-300 space-y-1">
+          <div><b>Criterio de Arranque:</b> Presurizar a razón de 100 psi / 10 min para prevenir erosión del asiento (3/16").</div>
+          <div><b>Cierre secuencial:</b> Al descender el punto de inyección disminuye P<sub>tbg</sub>, cerrando las válvulas superiores.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- MÓDULO 4: TABLAS COMPLETAS Y EXPORTACIÓN A EXCEL (CSV)                -->
+    <!-- ===================================================================== -->
+    <section id="mod4" class="hidden space-y-5">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">
+          <div>
+            <h2 class="text-base font-bold text-amber-400">
+              Tabla Oficial de Iteración Nodal (Datos de Ingeniería para el Capítulo II)
+            </h2>
+            <p class="text-xs text-slate-400">Incluye los valores calculados de oferta IPR y demanda TPR antes y después del Gas Lift.</p>
+          </div>
+          <button onclick="exportTableToCSV()" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-lg shadow cursor-pointer">
+            📥 Exportar Tabla a CSV (Excel)
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-950 text-slate-300 border-b border-slate-700">
+                <th class="py-2.5 px-3">Caudal Líquido Q (STB/d)</th>
+                <th class="py-2.5 px-3 text-amber-400">Presión Oferta IPR (psi)</th>
+                <th class="py-2.5 px-3 text-rose-400">Demanda TPR Sin Gas Lift (RGL 200)</th>
+                <th class="py-2.5 px-3 text-sky-400">Demanda TPR Con Gas Lift Actual</th>
+                <th class="py-2.5 px-3">Diagnóstico Operativo</th>
+              </tr>
+            </thead>
+            <tbody id="fullReportTable" class="divide-y divide-slate-800"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL: FICHA TÉCNICA DEL POZO SRB-14                                  -->
+  <!-- ===================================================================== -->
+  <div id="wellSheetModal" class="fixed inset-0 bg-black/85 z-50 hidden items-center justify-center p-4">
+    <div class="bg-slate-900 border border-emerald-500/40 rounded-2xl max-w-5xl w-full max-h-[92vh] overflow-y-auto p-6 shadow-2xl">
+      
+      <div class="flex justify-between items-start mb-4 border-b-2 border-emerald-500/50 pb-3">
+        <div>
+          <div class="text-[11px] text-emerald-400 font-bold uppercase tracking-wider">Universidad Mayor, Real y Pontificia de San Francisco Xavier de Chuquisaca</div>
+          <div class="text-[11px] text-slate-400">Carrera de Ingeniería de Petróleo y Gas Natural — Producción / Sistemas Artificiales</div>
+          <h2 class="text-xl font-bold text-white mt-2">📄 Ficha Técnica del Pozo SRB-14</h2>
+          <p class="text-xs text-slate-400 mt-0.5">Especificaciones de diseño para Levantamiento Artificial por Gas Lift Continuo</p>
+        </div>
+        <button onclick="toggleWellSheet()" class="text-slate-400 hover:text-white text-2xl font-bold cursor-pointer">×</button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+
+        <!-- BLOQUE 1: Identificación -->
+        <div class="bg-slate-950 border border-slate-800 rounded-lg p-3.5">
+          <div class="text-amber-400 font-bold text-sm mb-2">1. Identificación del Pozo</div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-slate-300">
+            <div><span class="text-slate-500">Pozo:</span> <span class="font-bold text-white">SRB-14</span></div>
+            <div><span class="text-slate-500">Área / Bloque:</span> Subandino Sur</div>
+            <div><span class="text-slate-500">Fluido Principal:</span> Petróleo Negro (35 °API)</div>
+            <div><span class="text-slate-500">Condición:</span> Maduro / Declinado</div>
+          </div>
+        </div>
+
+        <!-- BLOQUE 2: Datos de Reservorio -->
+        <div class="bg-slate-950 border border-slate-800 rounded-lg p-3.5">
+          <div class="text-amber-400 font-bold text-sm mb-2">2. Parámetros del Reservorio</div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-slate-300">
+            <div><span class="text-slate-500">Presión Reservorio (P<sub>r</sub>):</span> <span class="font-bold text-white">2200 psi</span></div>
+            <div><span class="text-slate-500">Presión Burbuja (P<sub>b</sub>):</span> 2220 psi</div>
+            <div><span class="text-slate-500">Gravedad Crudo:</span> 35 °API</div>
+            <div><span class="text-slate-500">Gravedad Esp. Gas (GE<sub>g</sub>):</span> 0.65</div>
+            <div><span class="text-slate-500">Profundidad Baleos (H):</span> <span class="font-bold text-white">8500 ft</span></div>
+            <div><span class="text-slate-500">Temperatura Fondo:</span> 140 - 210 °F</div>
+            <div><span class="text-slate-500">Mecanismo Empuje:</span> Hidráulico / Gas disuelto</div>
+            <div><span class="text-slate-500">RGL Formación:</span> 200 scf/STB</div>
+          </div>
+        </div>
+
+        <!-- BLOQUE 3: Geometría del pozo -->
+        <div class="bg-slate-950 border border-slate-800 rounded-lg p-3.5">
+          <div class="text-amber-400 font-bold text-sm mb-2">3. Geometría y Arreglo Mecánico Subsuperficial</div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-slate-300">
+            <div><span class="text-slate-500">Casing Producción:</span> 5 1/2"</div>
+            <div><span class="text-slate-500">Tubing Producción:</span> <span class="font-bold text-white">2 7/8" (ID 2.441")</span></div>
+            <div><span class="text-slate-500">Empacador (Packer):</span> 8250 ft (Semicerrado)</div>
+            <div><span class="text-slate-500">Intervalo Punzado:</span> 8500 ft</div>
+            <div><span class="text-slate-500">Mandriles Bolsillo:</span> 4 (2500 / 4500 / 6500 / 8000 ft)</div>
+            <div><span class="text-slate-500">Válvula Operante:</span> V4 @ 8000 ft</div>
+            <div><span class="text-slate-500">Presión Cabeza (P<sub>wh</sub>):</span> 80 psi</div>
+            <div><span class="text-slate-500">Presión Inyección (P<sub>csg</sub>):</span> 1000 psi</div>
+          </div>
+        </div>
+
+        <!-- BLOQUE 4: Diagnóstico actual vs objetivo -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="bg-slate-950 border border-rose-500/40 rounded-lg p-3.5">
+            <div class="text-rose-300 font-bold text-sm mb-2">4. Diagnóstico Base (Flujo Natural Residual)</div>
+            <div class="space-y-1 text-slate-300">
+              <div><span class="text-slate-500">Caudal Líquido Bruto:</span> <span class="font-bold text-white">165 STB/d</span></div>
+              <div><span class="text-slate-500">Corte de Agua (WC):</span> <span class="font-bold text-white">50 %</span></div>
+              <div><span class="text-slate-500">Caudal Petróleo Neto:</span> 82.5 BPD</div>
+              <div><span class="text-slate-500">P<sub>wf</sub> de Operación:</span> 1920 psi</div>
+              <div><span class="text-slate-500">RGL Disponible:</span> 200 scf/STB</div>
+              <div class="text-rose-300 pt-1">⚠️ Riesgo de ahogue por alta densidad hidrostática</div>
+            </div>
+          </div>
+          <div class="bg-slate-950 border border-emerald-500/40 rounded-lg p-3.5">
+            <div class="text-emerald-300 font-bold text-sm mb-2">5. Desempeño Optimizado (Con Gas Lift Continuo)</div>
+            <div class="space-y-1 text-slate-300">
+              <div><span class="text-slate-500">Caudal Líquido Bruto:</span> <span class="font-bold text-white">475 STB/d</span></div>
+              <div><span class="text-slate-500">Corte de Agua (WC):</span> 50 %</div>
+              <div><span class="text-slate-500">Caudal Petróleo Neto:</span> 237.5 BPD</div>
+              <div><span class="text-slate-500">P<sub>wf</sub> de Operación:</span> 1255 psi</div>
+              <div><span class="text-slate-500">RGL Total Objetivo:</span> 800 scf/STB</div>
+              <div class="text-emerald-300 pt-1">✓ Ganancia Neta: +310 STB/d (+188% sobre base)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BLOQUE 5: Resultados del análisis nodal -->
+        <div class="bg-slate-950 border border-sky-500/40 rounded-lg p-3.5">
+          <div class="text-sky-300 font-bold text-sm mb-2">6. Síntesis del Equilibrio Nodal</div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-slate-300">
+            <div><span class="text-slate-500">Potencial AOF (Q<sub>max</sub>):</span> <span class="font-bold text-white">764.4 STB/d</span></div>
+            <div><span class="text-slate-500">Correlación Base:</span> Vogel Simple</div>
+            <div><span class="text-slate-500">Alivio Columna (ΔP):</span> -665 psi</div>
+            <div><span class="text-slate-500">Factor de Uso AOF:</span> 62.1 %</div>
+          </div>
+        </div>
+
+        <!-- BLOQUE 6: Alcance y limitaciones -->
+        <div class="bg-slate-950 border border-amber-500/40 rounded-lg p-3.5">
+          <div class="text-amber-300 font-bold text-sm mb-2">7. Alcance Técnico del Modelo de Simulación</div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-slate-300">
+            <div>
+              <div class="text-emerald-300 font-bold mb-1">✓ Módulos Implementados</div>
+              <ul class="list-disc list-inside space-y-0.5 text-[11px]">
+                <li>Correlaciones IPR: Vogel Simple, Vogel Compuesto y Klins &amp; Majcher</li>
+                <li>Cálculo TPR segmentado en 17 tramos de 500 ft (dP/dz)</li>
+                <li>Balance mecánico de válvulas IPO con domo de N<sub>2</sub> y acoplamiento P<sub>tbg</sub></li>
+                <li>Simulación secuencial de descarga (Unloading V1 → V4)</li>
+                <li>Sensibilidad paramétrica a diámetro de tubing, P<sub>wh</sub>, WC y RGL</li>
+              </ul>
+            </div>
+            <div>
+              <div class="text-sky-300 font-bold mb-1">📌 Consideraciones de Modelado</div>
+              <ul class="list-disc list-inside space-y-0.5 text-[11px]">
+                <li>Gradiente multifásico segmentado calibrado para condiciones del pozo SRB-14</li>
+                <li>Calibración de presión de domo creciente con profundidad geotérmica</li>
+                <li>Acoplamiento de cierre de válvulas superiores por reducción de P<sub>tbg</sub></li>
+                <li>Exportación directa de tablas de iteración en formato CSV</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="border-t border-slate-800 pt-2 text-[11px] text-slate-500 text-center">
+          Sucre, Noviembre de 2026 | Docente: Ing. Jhon Alex León Seno | Materia: Producción / Sistemas Artificiales
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentModule = 1;
+    let selectedTubingID = 2.441;
+    let currentUnloadStage = 4;
+    let unloadInterval = null;
+
+    let chartIPR = null;
+    let chartNodal = null;
+    let chartTraverse = null;
+
+    const valvesData = [
+      { stage: 1, id: 1, name: 'V1 (Descarga)', depth: 2500, ySvg: 115, pDome: 689, pcsgOpenSurf: 700, pOpenDepth: 745, R: 0.12 },
+      { stage: 2, id: 2, name: 'V2 (Descarga)', depth: 4500, ySvg: 190, pDome: 835, pcsgOpenSurf: 800, pOpenDepth: 881, R: 0.12 },
+      { stage: 3, id: 3, name: 'V3 (Descarga)', depth: 6500, ySvg: 265, pDome: 981, pcsgOpenSurf: 900, pOpenDepth: 1017, R: 0.12 },
+      { stage: 4, id: 4, name: 'V4 (Operante)', depth: 8000, ySvg: 330, pDome: 1112, pcsgOpenSurf: 1000, pOpenDepth: 1144, R: 0.12 }
+    ];
+
+    const stageConfigs = {
+      0: { pcsg: 600, injDepth: 0,    glrActive: 200, text: 'Etapa 0: Pozo Ahogado (Pcsg = 600 psi < 700 psi). Ninguna válvula abierta.' },
+      1: { pcsg: 730, injDepth: 2500, glrActive: 500, text: 'Etapa 1: Abre V1 (2500 ft). El gas aligera el tramo superior del tubing.' },
+      2: { pcsg: 830, injDepth: 4500, glrActive: 620, text: 'Etapa 2: Nivel anular baja a 4500 ft. Abre V2 y se cierra V1 por caída de Ptbg.' },
+      3: { pcsg: 930, injDepth: 6500, glrActive: 720, text: 'Etapa 3: Nivel anular baja a 6500 ft. Abre V3 y quedan cerradas V1 y V2.' },
+      4: { pcsg: 1000, injDepth: 8000, glrActive: 800, text: '✓ Etapa 4 (Estabilizado): Inyección continua por V4 Operante (8000 ft).' }
+    };
+
+    function toggleExpl(id) {
+      const el = document.getElementById(id);
+      const icon = document.getElementById(id + '-icon');
+      el.classList.toggle('hidden');
+      icon.innerText = el.classList.contains('hidden') ? '▼' : '▲';
+    }
+
+    function toggleWellSheet() {
+      const modal = document.getElementById('wellSheetModal');
+      modal.classList.toggle('hidden');
+      modal.classList.toggle('flex');
+    }
+
+    function showModule(num) {
+      currentModule = num;
+      for (let i = 1; i <= 4; i++) {
+        const sec = document.getElementById('mod' + i);
+        const btn = document.getElementById('navBtn' + i);
+        if (i === num) {
+          sec.classList.remove('hidden');
+          if (i <= 3) sec.classList.add('grid');
+          btn.className = 'py-3 px-4 rounded-xl font-bold text-xs md:text-sm transition flex items-center justify-center gap-2 bg-amber-500 text-slate-950 shadow-lg cursor-pointer';
+        } else {
+          sec.classList.add('hidden');
+          sec.classList.remove('grid');
+          btn.className = 'py-3 px-4 rounded-xl font-bold text-xs md:text-sm transition flex items-center justify-center gap-2 bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer';
+        }
+      }
+      updateSim();
+    }
+
+    function loadPreset(type) {
+      if (type === 'srb14') {
+        document.getElementById('iprMethod').value = 'vogel';
+        document.getElementById('pr').value = 2200;
+        document.getElementById('pb').value = 2220;
+        document.getElementById('qTest').value = 230;
+        document.getElementById('pwfTest').value = 1800;
+        document.getElementById('pwfTarget').value = 1255;
+      } else if (type === 'ej2') {
+        document.getElementById('iprMethod').value = 'compuesto';
+        document.getElementById('pr').value = 2900;
+        document.getElementById('pb').value = 2220;
+        document.getElementById('qTest').value = 230;
+        document.getElementById('pwfTest').value = 2400;
+        document.getElementById('pwfTarget').value = 600;
+      }
+      updateSim();
+    }
+
+    function setQuickGLR(val) {
+      document.getElementById('glrSlider').value = val;
+      updateSim();
+    }
+
+    function setTubing(idVal) {
+      selectedTubingID = idVal;
+      [1.995, 2.441, 2.992].forEach((v, idx) => {
+        const b = document.getElementById('tbgBtn' + (idx + 1));
+        b.className = (v === idVal)
+          ? 'py-1.5 rounded border border-sky-500 bg-sky-500/20 text-sky-300 text-xs font-bold cursor-pointer'
+          : 'py-1.5 rounded border border-slate-700 bg-slate-950 text-slate-300 text-xs font-bold cursor-pointer';
+      });
+      updateSim();
+    }
+
+    function getIPRModel() {
+      const method = document.getElementById('iprMethod').value;
+      const pr = parseFloat(document.getElementById('pr').value) || 2200;
+      const pb = parseFloat(document.getElementById('pb').value) || 2220;
+      const qTest = parseFloat(document.getElementById('qTest').value) || 230;
+      const pwfTest = parseFloat(document.getElementById('pwfTest').value) || 1800;
+      const sBadge = document.getElementById('sanityBadge');
+
+      if (pwfTest >= pr) {
+        document.getElementById('iprBadge').innerText = '⚠️ ERROR: Pwf_prueba ≥ Pr';
+        document.getElementById('iprBadge').className = 'text-xs bg-rose-500/30 text-rose-300 px-2.5 py-1 rounded font-bold';
+        sBadge.innerText = '⚠️ Dato Inválido: Pwf_prueba debe ser menor a Pr';
+        sBadge.className = 'text-[11px] font-bold uppercase tracking-wider bg-rose-500/20 text-rose-300 px-2.5 py-0.5 rounded border border-rose-500/40';
+        return { name: 'INVÁLIDO', methodKey: 'invalid', qmax: 0, extraInfo: 'Error: Pwf ≥ Pr', qAtPwf: () => 0, pwfAtQ: () => 0 };
+      }
+
+      document.getElementById('iprBadge').className = 'text-xs bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded font-semibold';
+      sBadge.innerText = '✓ Cálculo Válido (Pwf_test < Pr)';
+      sBadge.className = 'text-[11px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded border border-emerald-500/30';
+
+      if (method === 'vogel') {
+        const r = pwfTest / pr;
+        const denom = 1 - 0.2 * r - 0.8 * r * r;
+        const qmax = qTest / denom;
+        return {
+          name: 'Vogel Simple',
+          methodKey: 'vogel',
+          qmax: qmax,
+          r: r,
+          denom: denom,
+          extraInfo: `Pwf / Pr = ${r.toFixed(3)}`,
+          qAtPwf: (pwf) => pwf >= pr ? 0 : qmax * (1 - 0.2 * (pwf / pr) - 0.8 * Math.pow(pwf / pr, 2)),
+          pwfAtQ: (q) => {
+            if (q >= qmax) return 0;
+            const disc = 0.04 - 3.2 * ((q / qmax) - 1);
+            return disc < 0 ? 0 : Math.max(0, pr * ((-0.2 + Math.sqrt(disc)) / 1.6));
+          }
+        };
+      } else if (method === 'compuesto') {
+        let J;
+        if (pwfTest >= pb) {
+          J = qTest / (pr - pwfTest);
+        } else {
+          J = qTest / ((pr - pb) + (pb / 1.8) * (1 - 0.2 * (pwfTest / pb) - 0.8 * Math.pow(pwfTest / pb, 2)));
+        }
+        const qb = J * (pr - pb);
+        const qmax = qb + (J * pb) / 1.8;
+        return {
+          name: 'Vogel Compuesto',
+          methodKey: 'compuesto',
+          qmax: qmax,
+          J: J,
+          qb: qb,
+          extraInfo: `J = ${J.toFixed(3)} BPD/psi | Qb = ${qb.toFixed(1)}`,
+          qAtPwf: (pwf) => {
+            if (pwf >= pr) return 0;
+            if (pwf >= pb) return J * (pr - pwf);
+            return qb + ((J * pb) / 1.8) * (1 - 0.2 * (pwf / pb) - 0.8 * Math.pow(pwf / pb, 2));
+          },
+          pwfAtQ: (q) => {
+            if (q >= qmax) return 0;
+            if (q <= qb) return pr - (q / J);
+            const y = (q - qb) / ((J * pb) / 1.8);
+            const disc = 0.04 - 3.2 * (y - 1);
+            return disc < 0 ? 0 : Math.max(0, pb * ((-0.2 + Math.sqrt(disc)) / 1.6));
+          }
+        };
+      } else {
+        const d = (0.28 + 0.72 * (pr / pb)) * (1.235 + 0.001 * pb);
+        const r = pwfTest / pr;
+        const denom = 1 - 0.295 * r - 0.705 * Math.pow(r, d);
+        const qmax = qTest / denom;
+        return {
+          name: 'Klins & Majcher',
+          methodKey: 'klins',
+          qmax: qmax,
+          d: d,
+          r: r,
+          denom: denom,
+          extraInfo: `Exponente d = ${d.toFixed(3)}`,
+          qAtPwf: (pwf) => pwf >= pr ? 0 : qmax * (1 - 0.295 * (pwf / pr) - 0.705 * Math.pow(pwf / pr, d)),
+          pwfAtQ: (q) => {
+            if (q >= qmax) return 0;
+            let low = 0, high = pr;
+            for (let i = 0; i < 18; i++) {
+              const mid = (low + high) / 2;
+              const qEst = qmax * (1 - 0.295 * (mid / pr) - 0.705 * Math.pow(mid / pr, d));
+              if (qEst > q) low = mid; else high = mid;
+            }
+            return (low + high) / 2;
+          }
+        };
+      }
+    }
+
+    function calcSegmentedTPR(q, pwh, totalDepth, wc, glrIny, injDepth, tubingID) {
+      if (q <= 0) return null;
+      const steps = 17;
+      const dz = totalDepth / steps;
+      let pCurrent = pwh;
+      const diamFactor = Math.pow(2.441 / tubingID, 4.8);
+
+      for (let i = 1; i <= steps; i++) {
+        const z = i * dz;
+        const activeGLR = (z <= injDepth) ? glrIny : 200;
+        const wcEffect = (wc - 50) * 0.00053;
+        const gasLightening = ((activeGLR - 200) / 600) * 0.086;
+        const slipHoldup = 0.025 * Math.exp(-q / 115);
+        const frictionGrad = 0.000000112 * Math.pow(q, 1.88) * diamFactor;
+
+        const dP_dz = Math.max(0.075, 0.210 - gasLightening + wcEffect + slipHoldup + frictionGrad);
+        pCurrent += dP_dz * dz;
+      }
+      return Math.round(pCurrent);
+    }
+
+    function findNodeIntersection(iprModel, pwh, depth, wc, glr, injDepth, tubingID) {
+      let bestQ = 0, minDiff = 99999, bestPwf = 0;
+      for (let q = 30; q <= iprModel.qmax; q += 2.5) {
+        const pIpr = iprModel.pwfAtQ(q);
+        const pTpr = calcSegmentedTPR(q, pwh, depth, wc, glr, injDepth, tubingID);
+        const diff = Math.abs(pIpr - pTpr);
+        if (diff < minDiff) {
+          minDiff = diff;
+          bestQ = q;
+          bestPwf = pIpr;
+        }
+      }
+      return { q: bestQ, pwf: bestPwf };
+    }
+
+    function updateExplanations(iprModel, simOp, baseOp, glr, wc, pwh, depth) {
+      const pr = parseFloat(document.getElementById('pr').value) || 2200;
+      const pb = parseFloat(document.getElementById('pb').value) || 2220;
+      const qTest = parseFloat(document.getElementById('qTest').value) || 230;
+      const pwfTest = parseFloat(document.getElementById('pwfTest').value) || 1800;
+      const pwfTarget = parseFloat(document.getElementById('pwfTarget').value) || 1255;
+      const qTargetVal = iprModel.qAtPwf(pwfTarget);
+
+      if (iprModel.methodKey === 'vogel') {
+        document.getElementById('expl1-math').innerHTML = `
+          <div><span class="text-amber-400">📐 Correlación de Vogel (Yacimiento Saturado, P<sub>r</sub> ≤ P<sub>b</sub>):</span></div>
+          <div class="pl-3 text-slate-200">Q / Q<sub>max</sub> = 1 − 0.2·(P<sub>wf</sub> / P<sub>r</sub>) − 0.8·(P<sub>wf</sub> / P<sub>r</sub>)<sup>2</sup></div>
+          <div class="pt-1"><span class="text-amber-400">🔢 Sustitución con datos de prueba:</span></div>
+          <div class="pl-3 text-slate-200">Q<sub>max</sub> = ${qTest} / [ 1 − 0.2·(${pwfTest}/${pr}) − 0.8·(${pwfTest}/${pr})<sup>2</sup> ] = ${qTest} / ${iprModel.denom.toFixed(4)} = <span class="text-emerald-400 font-bold">${iprModel.qmax.toFixed(2)} STB/d</span></div>
+          <div class="pt-1"><span class="text-amber-400">🎯 Evaluación para P<sub>wf</sub> = ${pwfTarget} psi:</span></div>
+          <div class="pl-3 text-slate-200">Q = ${iprModel.qmax.toFixed(2)} · [ 1 − 0.2·(${pwfTarget}/${pr}) − 0.8·(${pwfTarget}/${pr})<sup>2</sup> ] = <span class="text-sky-300 font-bold">${qTargetVal.toFixed(2)} STB/d</span></div>
+        `;
+      } else if (iprModel.methodKey === 'compuesto') {
+        document.getElementById('expl1-math').innerHTML = `
+          <div><span class="text-amber-400">📐 Método de Vogel Compuesto (Yacimiento Subsaturado, P<sub>r</sub> &gt; P<sub>b</sub>):</span></div>
+          <div class="pl-3 text-slate-200">Paso 1 (Índice de Productividad J): J = ${iprModel.J.toFixed(3)} STB/d/psi</div>
+          <div class="pl-3 text-slate-200">Paso 2 (Caudal de Burbuja Q<sub>b</sub>): Q<sub>b</sub> = J·(P<sub>r</sub> − P<sub>b</sub>) = ${iprModel.J.toFixed(3)}·(${pr} − ${pb}) = <span class="text-amber-300 font-bold">${iprModel.qb.toFixed(2)} STB/d</span></div>
+          <div class="pl-3 text-slate-200">Paso 3 (Caudal para P<sub>wf</sub> = ${pwfTarget} psi): Q<sub>o</sub> = Q<sub>b</sub> + (J·P<sub>b</sub> / 1.8)·[1 − 0.2(P<sub>wf</sub>/P<sub>b</sub>) − 0.8(P<sub>wf</sub>/P<sub>b</sub>)<sup>2</sup>] = <span class="text-emerald-400 font-bold">${qTargetVal.toFixed(2)} STB/d</span></div>
+        `;
+      } else {
+        document.getElementById('expl1-math').innerHTML = `
+          <div><span class="text-amber-400">📐 Método de Klins &amp; Majcher:</span></div>
+          <div class="pl-3 text-slate-200">Paso 1 (Exponente de turbulencia d): d = [0.28 + 0.72·(${pr}/${pb})] · (1.235 + 0.001·${pb}) = <span class="text-amber-300 font-bold">${iprModel.d.toFixed(3)}</span></div>
+          <div class="pl-3 text-slate-200">Paso 2 (Potencial Q<sub>max</sub>): Q<sub>max</sub> = ${qTest} / [1 − 0.295·(${pwfTest}/${pr}) − 0.705·(${pwfTest}/${pr})<sup>${iprModel.d.toFixed(3)}</sup>] = <span class="text-emerald-400 font-bold">${iprModel.qmax.toFixed(2)} STB/d</span></div>
+          <div class="pl-3 text-slate-200">Paso 3 (Caudal a P<sub>wf</sub> = ${pwfTarget} psi): Q = <span class="text-sky-300 font-bold">${qTargetVal.toFixed(2)} STB/d</span></div>
+        `;
+      }
+
+      document.getElementById('expl1-interp').innerText =
+        `El potencial máximo abierto (AOF) del pozo es de ${iprModel.qmax.toFixed(1)} STB/d. En la condición de prueba (${pwfTest} psi) aporta ${qTest} STB/d (${(qTest/iprModel.qmax*100).toFixed(1)}% de su capacidad total). Al disminuir la presión fluyente de fondo a ${pwfTarget} psi, el aporte de la formación se incrementa a ${qTargetVal.toFixed(1)} STB/d.`;
+      document.getElementById('expl1-speech').innerText =
+        `La evaluación por ${iprModel.name} confirma que la formación productora conserva energía suficiente (Qmax = ${iprModel.qmax.toFixed(1)} STB/d), por lo que la restricción productiva se origina en la contrapresión hidrostática de la columna de fluido.`;
+
+      document.getElementById('expl2-math').innerHTML = `
+        <div><span class="text-sky-400">📐 Condición de Equilibrio Nodal (P<sub>wf,IPR</sub> = P<sub>wf,TPR</sub>):</span></div>
+        <div class="pl-3 text-slate-200">🔴 Condición Base (RGL = 200 scf/STB): Intersección en Q = <span class="text-rose-300 font-bold">${baseOp.q.toFixed(0)} STB/d</span> | P<sub>wf</sub> = ${baseOp.pwf.toFixed(0)} psi</div>
+        <div class="pl-3 text-slate-200">🟢 Condición con Gas Lift (RGL = ${glr} scf/STB, Tubing ID = ${selectedTubingID}"): Intersección en Q = <span class="text-emerald-300 font-bold">${simOp.q.toFixed(0)} STB/d</span> | P<sub>wf</sub> = ${simOp.pwf.toFixed(0)} psi</div>
+        <div class="pl-3 text-slate-200">📊 Diferencial de Producción: <span class="text-emerald-400 font-bold">+${(simOp.q - baseOp.q).toFixed(0)} STB/d</span> | Caudal Neto de Petróleo (WC ${wc}%): <span class="text-amber-300 font-bold">${(simOp.q * (1 - wc/100)).toFixed(1)} BPD</span></div>
+      `;
+      document.getElementById('expl2-interp').innerText =
+        `El incremento de la Relación Gas-Líquido a ${glr} scf/STB reduce el gradiente medio de la columna por encima de la válvula operante (8,000 ft), disminuyendo la presión requerida en el nodo de fondo en ${Math.abs(simOp.pwf - baseOp.pwf).toFixed(0)} psi.`;
+      document.getElementById('expl2-speech').innerText =
+        `El sistema alcanza su punto de operación estable en ${simOp.q.toFixed(0)} STB/d sin alterar la curva IPR de la formación, optimizando el diferencial de presión (drawdown) mediante la reducción de densidad del fluido en el eductor.`;
+    }
+
+    function logUnloadStep(stage, pTubingAtValve) {
+      const log = document.getElementById('unloadLog');
+      const cfg = stageConfigs[stage];
+      let html = '';
+
+      if (stage === 0) {
+        html = `<div class="border-l-2 border-rose-500 pl-2 py-1">
+          <div class="font-bold text-rose-300">▸ Etapa 0: Pozo Ahogado (P<sub>csg</sub> = 600 psi)</div>
+          <div class="text-slate-400 text-[10px]">P<sub>csg</sub> &lt; 700 psi. Válvulas cerradas. Producción por flujo natural residual (165 STB/d).</div>
+        </div>`;
+      } else {
+        const v = valvesData[stage - 1];
+        const pcsgAtDepth = Math.round(cfg.pcsg + v.depth * 0.018);
+        const pOpenCoupled = Math.round(v.pDome * (1 - v.R) + pTubingAtValve * v.R);
+        html = `<div class="border-l-2 border-emerald-500 pl-2 py-1">
+          <div class="font-bold text-emerald-300">▸ Etapa ${stage}: Inyección activa en ${v.name} (${v.depth}')</div>
+          <div class="text-slate-400 text-[10px]">① P<sub>csg</sub> a ${v.depth} ft = ${cfg.pcsg} + ${v.depth}×0.018 = <span class="text-sky-300">${pcsgAtDepth} psi</span></div>
+          <div class="text-slate-400 text-[10px]">② Balance IPO (P<sub>tbg</sub>=${pTubingAtValve} psi, R=0.12): P<sub>apertura</sub> = <span class="text-amber-300">${pOpenCoupled} psi</span></div>
+          <div class="text-slate-300 text-[10px]">③ P<sub>csg</sub> ≥ P<sub>apertura</sub> → <span class="text-emerald-400 font-bold">✅ ABRE ${v.name}</span> ${stage > 1 ? '(Cierra V' + (stage - 1) + ' por caída de P<sub>tbg</sub>)' : ''}</div>
+        </div>`;
+      }
+      log.innerHTML = html + log.innerHTML;
+    }
+
+    function setUnloadStage(stageNum) {
+      if (unloadInterval) clearInterval(unloadInterval);
+      currentUnloadStage = stageNum;
+      updateUnloadView(true);
+    }
+
+    function runAutoUnloading() {
+      if (unloadInterval) clearInterval(unloadInterval);
+      document.getElementById('unloadLog').innerHTML = '';
+      currentUnloadStage = 0;
+      updateUnloadView(true);
+      unloadInterval = setInterval(() => {
+        currentUnloadStage++;
+        if (currentUnloadStage > 4) {
+          currentUnloadStage = 4;
+          clearInterval(unloadInterval);
+          return;
+        }
+        updateUnloadView(true);
+      }, 1100);
+    }
+
+    function updateUnloadView(shouldLog = false) {
+      const cfg = stageConfigs[currentUnloadStage];
+      const iprModel = getIPRModel();
+      if (iprModel.name === 'INVÁLIDO') return;
+
+      const pwh = parseFloat(document.getElementById('pwh').value) || 80;
+      const depth = parseFloat(document.getElementById('depth').value) || 8500;
+      const wc = parseFloat(document.getElementById('wcSlider').value) || 50;
+
+      for (let s = 0; s <= 4; s++) {
+        const b = document.getElementById('stBtn' + s);
+        if (b) {
+          b.className = (s === currentUnloadStage)
+            ? 'w-full text-left px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/20 border border-emerald-500 text-emerald-300 flex justify-between cursor-pointer'
+            : 'w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-950 border border-slate-800 hover:bg-slate-800 flex justify-between cursor-pointer';
+        }
+      }
+
+      const instType = document.getElementById('installType').value;
+      document.getElementById('svgPackerGroup').style.display = (instType === 'open') ? 'none' : 'block';
+      document.getElementById('svgStandingValve').style.display = (instType === 'closed') ? 'block' : 'none';
+
+      const opPoint = findNodeIntersection(iprModel, pwh, depth, wc, cfg.glrActive, cfg.injDepth, selectedTubingID);
+      document.getElementById('stageBanner').innerText = `${cfg.text} | Q = ${opPoint.q.toFixed(0)} STB/d`;
+      document.getElementById('svgPcsgVal').textContent = cfg.pcsg;
+
+      const tbody = document.getElementById('valvesTableUnload');
+      tbody.innerHTML = '';
+      let activeValveY = 330;
+
+      valvesData.forEach(v => {
+        let statusText = 'CERRADA (Ahogada)';
+        let badgeClass = 'bg-rose-500/20 text-rose-300';
+        let svgColor = '#ef4444';
+
+        if (currentUnloadStage === v.stage) {
+          statusText = '★ INYECTANDO';
+          badgeClass = 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+          svgColor = '#10b981';
+          activeValveY = v.ySvg;
+        } else if (currentUnloadStage > v.stage) {
+          statusText = 'CERRADA (Descarg.)';
+          badgeClass = 'bg-amber-500/20 text-amber-300';
+          svgColor = '#f59e0b';
+        }
+
+        const cNode = document.getElementById('svgV' + v.id);
+        if (cNode) {
+          cNode.setAttribute('fill', svgColor);
+          cNode.setAttribute('r', currentUnloadStage === v.stage ? '7' : '5');
+        }
+
+        tbody.innerHTML += `
+          <tr>
+            <td class="py-1 font-semibold text-white">${v.name}</td>
+            <td class="py-1 text-slate-400">${v.depth}'</td>
+            <td class="py-1 text-sky-300 font-bold">${v.pcsgOpenSurf} psi</td>
+            <td class="py-1 text-right"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${badgeClass}">${statusText}</span></td>
+          </tr>
+        `;
+      });
+
+      const bubbles = document.getElementById('svgBubbles');
+      const flL = document.getElementById('anFluidL'), flR = document.getElementById('anFluidR');
+      const gasL = document.getElementById('anGasL'), gasR = document.getElementById('anGasR');
+
+      if (currentUnloadStage === 0) {
+        bubbles.style.display = 'none';
+        flL.setAttribute('y', '55'); flL.setAttribute('height', '290');
+        flR.setAttribute('y', '55'); flR.setAttribute('height', '290');
+        gasL.setAttribute('height', '23'); gasR.setAttribute('height', '23');
+      } else {
+        bubbles.style.display = 'block';
+        const dy = activeValveY - 330;
+        bubbles.setAttribute('transform', `translate(0, ${dy})`);
+        flL.setAttribute('y', activeValveY); flL.setAttribute('height', Math.max(12, 345 - activeValveY));
+        flR.setAttribute('y', activeValveY); flR.setAttribute('height', Math.max(12, 345 - activeValveY));
+        gasL.setAttribute('height', activeValveY - 32); gasR.setAttribute('height', activeValveY - 32);
+      }
+
+      const steps = 17, dz = depth / steps;
+      let pTub = pwh;
+      let pTubAtActiveValve = pwh;
+      const tbgCurve = [{ x: pwh, y: 0 }];
+      const csgCurve = [{ x: cfg.pcsg, y: 0 }];
+      const diamFactor = Math.pow(2.441 / selectedTubingID, 4.8);
+
+      for (let i = 1; i <= steps; i++) {
+        const z = i * dz;
+        const activeGLR = (z <= cfg.injDepth) ? cfg.glrActive : 200;
+        const wcEffect = (wc - 50) * 0.00053;
+        const gasLightening = ((activeGLR - 200) / 600) * 0.086;
+        const slipHoldup = 0.025 * Math.exp(-opPoint.q / 115);
+        const frictionGrad = 0.000000112 * Math.pow(opPoint.q, 1.88) * diamFactor;
+        const dP_dz = Math.max(0.075, 0.210 - gasLightening + wcEffect + slipHoldup + frictionGrad);
+        pTub += dP_dz * dz;
+        if (Math.abs(z - cfg.injDepth) <= dz / 2) pTubAtActiveValve = Math.round(pTub);
+        tbgCurve.push({ x: Math.round(pTub), y: z });
+        csgCurve.push({ x: Math.round(cfg.pcsg + z * 0.018), y: z });
+      }
+
+      if (shouldLog) logUnloadStep(currentUnloadStage, pTubAtActiveValve);
+
+      const valvePoints = valvesData.map(v => ({ x: v.pOpenDepth, y: v.depth }));
+      if (chartTraverse) chartTraverse.destroy();
+      const ctxT = document.getElementById('traverseChart').getContext('2d');
+      chartTraverse = new Chart(ctxT, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            { label: 'Presión Tubing (Fluyendo)', data: tbgCurve, showLine: true, borderColor: '#f59e0b', borderWidth: 2.5, pointRadius: 1.5 },
+            { label: 'Presión Gas Casing', data: csgCurve, showLine: true, borderColor: '#38bdf8', borderDash: [5, 4], borderWidth: 2, pointRadius: 0 },
+            { label: 'Apertura Válvulas (V1-V4)', data: valvePoints, backgroundColor: '#10b981', borderColor: '#fff', borderWidth: 1.5, pointRadius: 5.5 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: {
+            x: { title: { display: true, text: 'Presión (psi)', color: '#94a3b8', font: { size: 10 } }, grid: { color: '#1e293b' }, ticks: { color: '#cbd5e1', font: { size: 10 } }, min: 0, max: 2200 },
+            y: { reverse: true, title: { display: true, text: 'Profundidad (ft)', color: '#94a3b8', font: { size: 10 } }, grid: { color: '#1e293b' }, ticks: { color: '#cbd5e1', font: { size: 10 } }, min: 0, max: 8500 }
+          },
+          plugins: { legend: { labels: { color: '#e2e8f0', font: { size: 10 }, boxWidth: 12 } } }
+        }
+      });
+    }
+
+    function exportTableToCSV() {
+      const rows = document.querySelectorAll('#fullReportTable tr');
+      let csv = 'Caudal Q (STB/d),Presion IPR (psi),TPR Sin Gas Lift (psi),TPR Con Gas Lift (psi),Diagnostico\n';
+      rows.forEach(r => {
+        const cells = r.querySelectorAll('td');
+        if (cells.length > 0) {
+          csv += Array.from(cells).map(c => '"' + c.innerText.replace(/"/g, '""') + '"').join(',') + '\n';
+        }
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'Tabla_Nodal_SRB14_USFX.csv'; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function updateSim() {
+      const iprModel = getIPRModel();
+      if (iprModel.name === 'INVÁLIDO') return;
+
+      const pr = parseFloat(document.getElementById('pr').value) || 2200;
+      const pwfTarget = parseFloat(document.getElementById('pwfTarget').value) || 1255;
+      const pwh = parseFloat(document.getElementById('pwh').value) || 80;
+      const depth = parseFloat(document.getElementById('depth').value) || 8500;
+      const glr = parseFloat(document.getElementById('glrSlider').value) || 800;
+      const wc = parseFloat(document.getElementById('wcSlider').value) || 50;
+
+      document.getElementById('resQmax').innerText = iprModel.qmax.toFixed(2) + ' STB/d';
+      document.getElementById('resExtraParam').innerText = iprModel.extraInfo;
+      const qTargetVal = iprModel.qAtPwf(pwfTarget);
+      document.getElementById('resQtarget').innerText = qTargetVal.toFixed(2) + ' STB/d';
+      document.getElementById('iprBadge').innerText = 'Método: ' + iprModel.name;
+
+      document.getElementById('lblGlr').innerText = glr + ' scf/STB';
+      document.getElementById('lblWc').innerText = wc + ' %';
+
+      const baseOp = findNodeIntersection(iprModel, pwh, depth, wc, 200, 0, selectedTubingID);
+      const injDepthActive = glr > 220 ? 8000 : 0;
+      const simOp = findNodeIntersection(iprModel, pwh, depth, wc, glr, injDepthActive, selectedTubingID);
+      const gain = simOp.q - baseOp.q;
+
+      document.getElementById('nodalQbase').innerText = baseOp.q.toFixed(0) + ' STB/d';
+      document.getElementById('nodalPbase').innerText = `Pwf = ${baseOp.pwf.toFixed(0)} psi`;
+      document.getElementById('nodalQsim').innerText = simOp.q.toFixed(0) + ' STB/d';
+      document.getElementById('nodalPsim').innerText = `Pwf = ${simOp.pwf.toFixed(0)} psi`;
+      document.getElementById('nodalGain').innerText = (gain >= 0 ? '+' : '') + gain.toFixed(0) + ' STB/d';
+      document.getElementById('nodalOilNet').innerText = `Petróleo: ${(simOp.q * (1 - wc / 100)).toFixed(1)} BPD`;
+      document.getElementById('nodalDeltaP').innerText = (simOp.pwf - baseOp.pwf).toFixed(0) + ' psi';
+
+      updateExplanations(iprModel, simOp, baseOp, glr, wc, pwh, depth);
+
+      const iprCurve = [], tprBaseCurve = [], tprSimCurve = [];
+      for (let q = 0; q <= iprModel.qmax; q += 25) {
+        iprCurve.push({ x: q, y: Math.round(iprModel.pwfAtQ(q)) });
+        if (q >= 40) {
+          tprBaseCurve.push({ x: q, y: calcSegmentedTPR(q, pwh, depth, wc, 200, 0, selectedTubingID) });
+          tprSimCurve.push({ x: q, y: calcSegmentedTPR(q, pwh, depth, wc, glr, injDepthActive, selectedTubingID) });
+        }
+      }
+      iprCurve.push({ x: Math.round(iprModel.qmax), y: 0 });
+
+      if (currentModule === 1) {
+        if (chartIPR) chartIPR.destroy();
+        const ctx1 = document.getElementById('iprOnlyChart').getContext('2d');
+        chartIPR = new Chart(ctx1, {
+          type: 'scatter',
+          data: {
+            datasets: [
+              { label: `Curva IPR (${iprModel.name})`, data: iprCurve, showLine: true, borderColor: '#f59e0b', borderWidth: 3, pointRadius: 2, tension: 0.25 },
+              { label: 'Punto Pwf Evaluado', data: [{ x: qTargetVal, y: pwfTarget }], backgroundColor: '#10b981', borderColor: '#fff', borderWidth: 2, pointRadius: 7 }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+              x: { title: { display: true, text: 'Caudal Q (STB/día)', color: '#94a3b8' }, grid: { color: '#1e293b' }, ticks: { color: '#cbd5e1' }, min: 0 },
+              y: { title: { display: true, text: 'Presión Fluyente Pwf (psi)', color: '#94a3b8' }, grid: { color: '#1e293b' }, ticks: { color: '#cbd5e1' }, min: 0, max: pr + 200 }
+            },
+            plugins: { legend: { labels: { color: '#e2e8f0' } } }
+          }
+        });
+      }
+
+      if (currentModule === 2) {
+        if (chartNodal) chartNodal.destroy();
+        const ctx2 = document.getElementById('nodalMainChart').getContext('2d');
+        chartNodal = new Chart(ctx2, {
+          type: 'scatter',
+          data: {
+            datasets: [
+              { label: `IPR (${iprModel.name})`, data: iprCurve, showLine: true, borderColor: '#f59e0b', borderWidth: 3, pointRadius: 0, tension: 0.25 },
+              { label: 'TPR Sin Gas Lift (RGL 200)', data: tprBaseCurve, showLine: true, borderColor: '#f43f5e', borderDash: [6, 4], borderWidth: 2, pointRadius: 0, tension: 0.3 },
+              { label: `TPR Con Gas Lift (RGL ${glr} | Tbg ${selectedTubingID}")`, data: tprSimCurve, showLine: true, borderColor: '#38bdf8', borderWidth: 3, pointRadius: 0, tension: 0.3 },
+              { label: 'Punto Operación', data: [{ x: simOp.q, y: simOp.pwf }], backgroundColor: '#10b981', borderColor: '#fff', borderWidth: 2, pointRadius: 7 }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+              x: { title: { display: true, text: 'Caudal Líquido Q (STB/d)', color: '#94a3b8' }, grid: { color: '#1e293b' }, ticks: { color: '#cbd5e1' }, min: 0 },
+              y: { title: { display: true, text: 'Presión de Fondo Pwf (psi)', color: '#94a3b8' }, grid: { color: '#1e293b' }, ticks: { color: '#cbd5e1' }, min: 0, max: pr + 300 }
+            },
+            plugins: { legend: { labels: { color: '#e2e8f0' } } }
+          }
+        });
+      }
+
+      if (currentModule === 3) {
+        updateUnloadView(false);
+      }
+
+      const sampleQs = [0, 100, 165, 230, 300, 400, 475, 600, Math.round(iprModel.qmax)];
+      const tb = document.getElementById('fullReportTable');
+      tb.innerHTML = '';
+      sampleQs.forEach(q => {
+        const pI = Math.round(iprModel.pwfAtQ(q));
+        const pB = (q === 0 || q >= iprModel.qmax) ? '—' : calcSegmentedTPR(q, pwh, depth, wc, 200, 0, selectedTubingID);
+        const pS = (q === 0 || q >= iprModel.qmax) ? '—' : calcSegmentedTPR(q, pwh, depth, wc, glr, injDepthActive, selectedTubingID);
+        let note = 'Flujo en transición';
+        if (q === 0) note = 'Presión estática de reservorio (Pr)';
+        else if (Math.abs(q - baseOp.q) < 18) note = '⚠️ Equilibrio SIN Gas Lift (Marginal)';
+        else if (Math.abs(q - simOp.q) < 18 && glr > 220) note = '✅ PUNTO ÓPTIMO CON GAS LIFT';
+        else if (q >= iprModel.qmax) note = 'Potencial Máximo Abierto (AOF)';
+
+        tb.innerHTML += `
+          <tr class="hover:bg-slate-800/60">
+            <td class="py-2 px-3 font-bold">${q}</td>
+            <td class="py-2 px-3 text-amber-300 font-semibold">${pI} psi</td>
+            <td class="py-2 px-3 text-rose-300">${pB}</td>
+            <td class="py-2 px-3 text-sky-300 font-bold">${pS}</td>
+            <td class="py-2 px-3 text-slate-300">${note}</td>
+          </tr>
+        `;
+      });
+    }
+
+    window.onload = () => {
+      showModule(1);
+      logUnloadStep(4, 1185);
+    };
+  </script>
+</body>
+</html>
